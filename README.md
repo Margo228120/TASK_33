@@ -15,7 +15,7 @@
                                           └──────────┘          └──────────┘
 ```
 
-- **API** — программа, которая принимает запросы от других программ и отвечает им. Внутри она сама ходит в базу теми самыми SQL-запросами, которые ты писал вчера.
+- **API** — программа, которая принимает запросы от других программ и отвечает им. Внутри она сама ходит в базу.
 - **HTTP** — язык, на котором браузер разговаривает с сайтами. API говорит на нём же. Каждый **запрос** — это **метод** и **адрес**: `GET /products/17`.
 - **Метод** говорит, *что* сделать:
 
@@ -37,11 +37,26 @@
 
 - **Код ответа** — число, по которому сразу видно, получилось или нет: `200` — всё хорошо, `404` — такого нет, `400` — ты прислал что-то не то, `500` — ошибка внутри API. Полная таблица будет в части C.
 
+### Что такое EF Core — за одну минуту
+
+Писать SQL сегодня не придётся. За тебя его напишет **Entity Framework Core** (EF Core) — библиотека, которая переводит обычный код на C# в SQL:
+
+```csharp
+db.Products.Where(p => p.Price > 1000).OrderBy(p => p.Price).ToList()
+```
+
+```sql
+SELECT * FROM products WHERE price > 1000 ORDER BY price
+```
+
+А строки, которые вернула база, EF Core сам превращает в объекты C#. Такие библиотеки называют **ORM**. Вчерашний SQL не пропадёт: ты увидишь, какой SQL составляет EF Core, и будешь понимать, что происходит.
+
 ### Как устроен этот день
 
 1. Скачиваешь задание, ставишь Visual Studio, подключаешь API к базе (шаги 0–4).
-2. Решаешь 12 заданий в файле `Program.cs`. Каждое задание — один новый адрес API. Задания разбиты на 4 части.
-3. **После каждой части делаешь коммит и `git push`**, как в днях 1 и 2.
+2. Разбираешься, как устроен проект (шаг 5).
+3. Решаешь 12 заданий в папке `Controllers`. Каждое задание — один новый адрес API. Задания разбиты на 4 части.
+4. **После каждой части делаешь коммит и `git push`**, как в днях 1 и 2.
 
 Возникла проблема? Загляни в раздел [«Если что-то пошло не так»](#если-что-то-пошло-не-так) или напиши в наш Telegram-чат.
 
@@ -61,12 +76,16 @@ ls
 ```
 
 ```
-Program.cs  Properties  README.md  ShopApi.csproj  appsettings.json
+Controllers  Data  Models  Program.cs  Properties  README.md  ShopApi.csproj  appsettings.json
 ```
 
-- `Program.cs` — весь код API. Здесь ты будешь писать ответы.
-- `ShopApi.csproj` — описание проекта: на какой версии .NET он работает и какие библиотеки использует. Его **не меняй**.
-- `Properties/launchSettings.json` и `appsettings.json` — настройки запуска. Их тоже **не меняй**.
+| Что | Зачем | Менять? |
+|---|---|---|
+| `Controllers/` | **контроллеры** — код, который отвечает на запросы. Здесь ты будешь писать ответы | ✅ да |
+| `Models/` | **модели** — как строки таблиц выглядят в C#. Сюда добавишь свои классы | ✅ добавлять новые файлы |
+| `Data/ShopContext.cs` | подключение EF Core к таблицам базы | ❌ нет |
+| `Program.cs` | настройка и запуск API | ❌ нет |
+| `ShopApi.csproj`, `Properties/`, `appsettings.json` | описание проекта и настройки запуска | ❌ нет |
 
 > ⚠️ Проверь, что в адресе стоит **твой** ник, а не `aidarmar123`.
 
@@ -143,7 +162,7 @@ Successfully saved ConnectionStrings:Shop to the secret store.
 ## Шаг 4. Запусти API
 
 1. Открой Visual Studio → **Открыть проект или решение** (Open a project or solution) → выбери `ShopApi.csproj` в папке `projects/TASK_3`.
-2. Справа в окне **Обозреватель решений** (Solution Explorer) дважды нажми на `Program.cs` — откроется код.
+2. Справа в окне **Обозреватель решений** (Solution Explorer) раскрой папку **Controllers** и дважды нажми на `CategoriesController.cs` — откроется код.
 3. Нажми зелёную кнопку **▶ http** сверху (или **F5**).
 
 Откроется чёрное окно — это сервер API, в нём пишутся сообщения и ошибки. А в браузере откроется страница **Swagger**: http://localhost:5000/swagger
@@ -158,6 +177,18 @@ Successfully saved ConnectionStrings:Shop to the secret store.
 3. Ниже, в **Responses**, появится **Code** `200` и **Response body** — список категорий в формате JSON.
 
 А `GET`-запросы можно открывать и просто в адресной строке браузера. Открой в новой вкладке http://localhost:5000/categories — увидишь тот же JSON.
+
+Теперь загляни в чёрное окно сервера. Там появилось что-то вроде:
+
+```
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (5ms) ...
+      SELECT c.id, c.name
+      FROM categories AS c
+      ORDER BY c.id
+```
+
+Это SQL, который EF Core составил и отправил в базу. Если API отвечает не то, что ты ждёшь, — первым делом смотри сюда.
 
 **Остановить API** — красная кнопка **■** сверху (или **Shift + F5**).
 
@@ -175,73 +206,133 @@ dotnet run
 
 ---
 
-## Шаг 5. Как устроен Program.cs
+## Шаг 5. Как устроен проект
 
-Открой `Program.cs`. Сверху — **настройка**: подключение библиотек, Swagger, база. Её уже сделали за тебя, **не меняй её**. Ниже — готовый пример, который ты только что запускал:
+Вот что происходит, когда приходит запрос `GET /categories`:
+
+```
+ GET /categories
+       │
+       ▼
+ Controllers/CategoriesController.cs     контроллер: принимает запрос и решает, что ответить
+       │   db.Categories.OrderBy(c => c.Id).ToList()
+       ▼
+ Data/ShopContext.cs, Models/*.cs        EF Core: переводит это в SQL, а строки из базы — в объекты
+       │   SELECT ... FROM categories ORDER BY id
+       ▼
+ база shop
+```
+
+### Модели
+
+Открой папку `Models`. В ней — по классу на каждую таблицу базы:
 
 ```csharp
-// GET /categories — все категории
-app.MapGet("/categories", () =>
+public class Product
 {
-    using var conn = db.OpenConnection();
-    return conn.Query<Category>("SELECT * FROM categories ORDER BY id");
-});
+    public int Id { get; set; }
+    public string Name { get; set; } = "";
+    public int CategoryId { get; set; }
+    public int Price { get; set; }
+    public int Stock { get; set; }
+}
+```
+
+- `class Product` — новый тип данных «Товар». Один объект `Product` — одна строка таблицы `products`.
+- Каждая строчка внутри — **свойство**, то есть столбец. `int` — целое число, `string` — текст, `DateOnly` — дата.
+- Свойство `CategoryId` — это столбец `category_id`: EF Core убирает подчёркивания и начинает каждое слово с большой буквы.
+- В JSON свойство `CategoryId` превратится в `categoryId` — с маленькой буквы. Так принято в JSON.
+
+В моделях `Order` и `OrderItem` есть ещё **навигационные свойства** — ссылки на связанные строки из других таблиц. Это те самые стрелки со схемы из дня 2:
+
+```csharp
+public class Order
+{
+    ...
+    public Client Client { get; set; } = null!;              // клиент, который сделал заказ
+    public List<OrderItem> Items { get; set; } = new();      // строки этого заказа
+}
+```
+
+Благодаря им можно написать `o.Client.Name` — и EF Core сам сделает `JOIN` с таблицей `clients`.
+
+> ⚠️ Модели в папке `Models` должны точно совпадать с таблицами. Не добавляй в них свойства, которых нет в базе, — EF Core будет искать такой столбец и упадёт с ошибкой. Для своих данных создавай новые классы (это будет в части B).
+
+### Контекст базы
+
+`Data/ShopContext.cs` связывает модели с таблицами:
+
+```csharp
+public DbSet<Product> Products => Set<Product>();
+```
+
+Это значит: `db.Products` — таблица `products`. Через `db` ты будешь читать и менять все таблицы.
+
+### Контроллер
+
+Открой `Controllers/CategoriesController.cs` — это готовый пример:
+
+```csharp
+[ApiController]
+[Route("categories")]
+public class CategoriesController(ShopContext db) : ControllerBase
+{
+    // Пример. GET /categories — все категории
+    [HttpGet]
+    public List<Category> GetAll()
+    {
+        return db.Categories.OrderBy(c => c.Id).ToList();
+    }
+}
 ```
 
 Разберём по строчкам:
 
-- `app.MapGet("/categories", () => { … })` — «когда придёт запрос `GET /categories`, выполни код в фигурных скобках». Такой адрес вместе с его кодом называют **эндпоинтом** (endpoint).
-- `using var conn = db.OpenConnection();` — открыть соединение с базой. Слово `using` значит, что соединение само закроется, когда код закончится.
-- `conn.Query<Category>("SELECT …")` — выполнить SQL-запрос и каждую строку результата превратить в объект `Category`.
-- `return` — отдать результат. ASP.NET сам превратит список объектов в JSON.
+- `[ApiController]` и `[Route("categories")]` — **атрибуты**, пометки в квадратных скобках. Они говорят ASP.NET: «этот класс отвечает на запросы, адреса которых начинаются с `/categories`».
+- `CategoriesController(ShopContext db) : ControllerBase` — класс-контроллер. В скобках — то, что ему нужно для работы: контекст базы `db`. ASP.NET передаст его сам.
+- `[HttpGet]` — «этот метод отвечает на запрос `GET`» по адресу контроллера, то есть `GET /categories`.
+- `public List<Category> GetAll()` — **метод** с именем `GetAll`, который возвращает список категорий. Имя можно придумать любое, но лучше понятное.
+- `db.Categories.OrderBy(c => c.Id).ToList()` — «возьми таблицу категорий, отсортируй по `Id` и выполни запрос». ASP.NET сам превратит список в JSON.
 
-А в самом конце файла описаны **модели** — как строка таблицы выглядит в C#:
+`c => c.Id` — это **лямбда**, маленькая функция: «для каждой категории `c` возьми её `Id`». Имя `c` можно выбрать любое: `x => x.Id` работает так же.
 
-```csharp
-class Category
-{
-    public int Id { get; set; }
-    public string Name { get; set; } = "";
-}
-```
+> ⚠️ **`.ToList()` в конце обязателен.** Без него запрос только *описан*, но не выполнен — в базу ничего не уйдёт.
 
-- `class Category` — новый тип данных «Категория».
-- Каждая строчка внутри — **свойство**: столбец таблицы. `int` — целое число, `string` — текст.
-- Столбец `id` попадает в свойство `Id`, а `category_id` — в `CategoryId`: подчёркивания убираются, каждое слово начинается с большой буквы. Это настроено строчкой `DefaultTypeMap.MatchNamesWithUnderscores = true` в настройке.
-- В JSON свойство `CategoryId` превратится в `categoryId` — с маленькой буквы. Так принято в JSON.
+Каждый контроллер отвечает за свою часть адресов:
 
-Модели `Product` и `Client` тоже уже готовы. Остальные ты напишешь сам.
+| Контроллер | Адреса | Задания |
+|---|---|---|
+| `CategoriesController` | `/categories/...` | 4 |
+| `ProductsController` | `/products/...` | 1, 2, 8, 9, 10 |
+| `ClientsController` | `/clients/...` | 3, 7 |
+| `OrdersController` | `/orders/...` | 5, 6, 11, 12 |
+
+Внутри каждого контроллера уже есть строки `// Задание N` — пиши метод сразу под нужной.
 
 **Правила C#, которые сэкономят тебе нервы:**
 
-- Каждая команда заканчивается точкой с запятой `;`. Каждый `MapGet(…)` — тоже: `});` в конце.
+- Каждая команда заканчивается точкой с запятой `;`. А после `}` метода точка с запятой не нужна.
 - Большие и маленькие буквы различаются **везде**: `Product` и `product` — разные имена.
-- Текст пишется в **двойных** кавычках: `"SELECT …"`. А **внутри** SQL текст по-прежнему в одинарных: `"… WHERE city = 'Казань'"`.
-- Длинный SQL удобно писать в тройных кавычках — тогда можно переносить строки:
-
-```csharp
-return conn.Query<Product>("""
-    SELECT *
-    FROM products
-    ORDER BY id
-    """);
-```
-
+- Текст пишется в **двойных** кавычках: `"Казань"`.
+- Сравнение — двумя знаками равно: `c.City == "Казань"`. Один знак `=` — это «присвоить», а не «сравнить».
+- «И» — `&&`, «или» — `||`, «не» — `!`.
 - Ошибки Visual Studio подчёркивает красной волнистой линией. Полный список — в окне **Список ошибок** (Error List) внизу. Если API не запускается, начни с первой ошибки в этом списке.
 
 ### Сдача после каждой части
 
-Закончил часть — сохрани `Program.cs` (**Ctrl + S**) и отправь работу из Git Bash:
+Закончил часть — сохрани все файлы (**Ctrl + Shift + S**) и отправь работу из Git Bash:
 
 ```bash
-git add Program.cs
+git add .
 git commit -m "Часть A: получаем данные"
 git push
 ```
 
+`git add .` добавляет все изменённые и новые файлы в папке. Служебные папки `bin` и `obj` Git пропустит сам — они перечислены в файле `.gitignore`.
+
 Сообщение коммита меняй под часть: `Часть B: несколько таблиц` и так далее.
 
-> 💡 Visual Studio может создать в папке файл `ShopApi.sln` или `ShopApi.slnx`. Его можно закоммитить или просто не трогать — проверке он не мешает.
+> 💡 Visual Studio может создать в папке файл `ShopApi.sln` или `ShopApi.slnx`. Его можно закоммитить — проверке он не мешает.
 
 ---
 
@@ -249,72 +340,79 @@ git push
 
 ### Шпаргалка
 
-Примеры — на категориях и заказах. Твои задания — про товары и клиентов, но устроены так же.
+**SQL → EF Core.** Почти всё, что ты вчера писал в SQL, есть и в EF Core:
+
+| SQL | EF Core |
+|---|---|
+| `SELECT * FROM products` | `db.Products.ToList()` |
+| `WHERE price > 1000` | `.Where(p => p.Price > 1000)` |
+| `WHERE city = 'Тула' AND id > 3` | `.Where(c => c.City == "Тула" && c.Id > 3)` |
+| `ORDER BY price` | `.OrderBy(p => p.Price)` |
+| `ORDER BY price DESC` | `.OrderByDescending(p => p.Price)` |
+| `LIMIT 5` | `.Take(5)` |
+| `SELECT COUNT(*)` | `.Count()` |
+| «есть ли хоть одна такая строка?» | `.Any(c => c.Id == 3)` → `true` или `false` |
+| одна строка по `id` | `db.Products.Find(17)` → объект или `null` |
+| первая подходящая строка | `.FirstOrDefault(c => c.Name == "Мебель")` → объект или `null` |
+
+Части можно соединять в цепочку: `db.Products.Where(…).OrderBy(…).Take(5).ToList()`.
 
 **Параметр в адресе.** Часть адреса в фигурных скобках становится переменной:
 
 ```csharp
 // GET /categories/3 — одна категория
-app.MapGet("/categories/{id}", (int id) =>
+[HttpGet("{id}")]
+public ActionResult<Category> Get(int id)
 {
-    using var conn = db.OpenConnection();
-    var category = conn.QuerySingleOrDefault<Category>("SELECT * FROM categories WHERE id = @id", new { id });
+    var category = db.Categories.Find(id);
     if (category == null)
-        return Results.NotFound();
-    return Results.Ok(category);
-});
+        return NotFound();
+    return category;
+}
 ```
 
-- `{id}` в адресе и `(int id)` в скобках — одно и то же имя. Для адреса `/categories/3` в переменной `id` окажется `3`.
-- `@id` в SQL — **параметр**: вместо него библиотека подставит значение из `new { id }`.
-- `QuerySingleOrDefault` — для запроса, который вернёт **одну** строку. Если строк нет — вернёт `null` (пусто).
-- `Results.NotFound()` — ответить кодом `404`, `Results.Ok(…)` — кодом `200` и данными. Если в эндпоинте есть хоть один `Results.…`, все ответы в нём должны быть через `Results.…`.
+- `[HttpGet("{id}")]` — адрес контроллера плюс `/{id}`, то есть `/categories/{id}`.
+- `{id}` в адресе и `int id` в скобках метода — одно и то же имя. Для адреса `/categories/3` в переменной `id` окажется `3`.
+- `ActionResult<Category>` — «вернёт либо категорию, либо код ошибки».
+- `return NotFound();` — ответить кодом `404`. `return category;` — кодом `200` и данными.
+- `null` — «пусто, ничего нет».
 
-> ⚠️ **Никогда не вставляй значения в SQL склеиванием строк**, только через `@параметр`:
->
-> ```csharp
-> conn.Query<Client>($"SELECT * FROM clients WHERE city = '{city}'");   // ❌ ТАК НЕЛЬЗЯ
-> conn.Query<Client>("SELECT * FROM clients WHERE city = @city", new { city });   // ✅ так можно
-> ```
->
-> Если злоумышленник пришлёт вместо города текст `'; DELETE FROM clients; --`, первый вариант выполнит его как SQL и удалит всех клиентов. Это называется **SQL-инъекция** — одна из самых частых дыр в настоящих программах.
-
-**Параметр после знака `?`.** Адрес может нести дополнительные условия: `/orders?status=Новый`. Такой параметр тоже объявляется в скобках, но в адресе его нет:
+**Параметр после знака `?`.** Адрес может нести дополнительные условия: `/orders?status=Новый`. Такой параметр тоже пишется в скобках метода, но в атрибуте его нет:
 
 ```csharp
 // GET /orders?status=Новый — заказы с таким статусом
-app.MapGet("/orders", (string? status) =>
+[HttpGet]
+public List<Order> GetAll(string? status)
 {
-    using var conn = db.OpenConnection();
-    if (status == null)
-        return conn.Query<…>("SELECT … без WHERE …");
-    return conn.Query<…>("SELECT … WHERE status = @status …", new { status });
-});
+    var orders = db.Orders.AsQueryable();
+    if (status != null)
+        orders = orders.Where(o => o.Status == status);
+    return orders.OrderBy(o => o.Id).ToList();
+}
 ```
 
 - `string?` — текст, который может отсутствовать. Если в адресе нет `?status=…`, в переменной будет `null`.
+- `AsQueryable()` позволяет собирать запрос по кусочкам: условие добавится, только если оно нужно.
 
-**Одно число из базы:**
+> 💡 Помнишь, как в SQL нельзя склеивать текст запроса с данными пользователя? EF Core всегда передаёт значения в базу отдельно от текста запроса (в логе это видно как `@p`). Поэтому SQL-инъекции здесь не страшны.
 
-```csharp
-int count = conn.ExecuteScalar<int>("SELECT COUNT(*) FROM categories WHERE id = @id", new { id });
-```
+**Адрес с подпутём.** В атрибут можно написать путь длиннее: `[HttpGet("{id}/orders")]` в контроллере `/clients` — это `/clients/{id}/orders`.
 
 ### Задания
 
-**Во всех заданиях сегодня списки сортируй по `id`** — от меньшего к большему. Так проверяющим легче сравнивать ответы.
+**Во всех заданиях сегодня списки сортируй по `Id`** — от меньшего к большему. Так проверяющим легче сравнивать ответы.
 
-**Задание 1.** `GET /products` — все товары.
+**Задание 1.** `GET /products` — все товары. Пиши в `ProductsController`.
 > Проверь себя: http://localhost:5000/products — список из 21 товара, первый — `{"id":1,"name":"Пончики с шоколадом","categoryId":1,"price":90,"stock":500}`.
 
 **Задание 2.** `GET /products/{id}` — один товар по номеру. Если такого товара нет — код `404`.
 > Проверь себя: `/products/17` — `{"id":17,"name":"Кофемашина ZOLOTO-3000","categoryId":4,"price":89900,"stock":2}`. `/products/100` — браузер покажет ошибку 404, а Swagger — код `404`.
 
-**Задание 3.** `GET /clients` — все клиенты. А если в адресе есть `?city=…` — только клиенты из этого города.
+**Задание 3.** `GET /clients` — все клиенты. А если в адресе есть `?city=…` — только клиенты из этого города. Пиши в `ClientsController`.
 > Проверь себя: `/clients` — 11 клиентов. `/clients?city=Казань` — 3 клиента. `/clients?city=Атлантида` — пустой список `[]` (это не ошибка: город правильный, просто клиентов там нет).
 
-**Задание 4.** `GET /categories/{id}/products` — все товары одной категории. Если такой категории нет — код `404`.
-> 💡 Сначала проверь, есть ли категория (`ExecuteScalar` с `COUNT(*)`), а потом доставай товары.
+**Задание 4.** `GET /categories/{id}/products` — все товары одной категории. Если такой категории нет — код `404`. Пиши в `CategoriesController`.
+> 💡 Сначала проверь, есть ли категория (`Any`), а потом доставай её товары.
 >
 > Проверь себя: `/categories/5/products` — 3 товара: стул, стол и стеллаж. `/categories/9/products` — код `404`.
 
@@ -326,87 +424,97 @@ int count = conn.ExecuteScalar<int>("SELECT COUNT(*) FROM categories WHERE id = 
 
 ### Шпаргалка
 
-**Своя модель.** Когда SQL возвращает столбцы из разных таблиц, для них нужен свой класс. Допиши его в конец `Program.cs`, рядом с остальными моделями:
+**Модель для ответа.** Модель `Order` повторяет таблицу `orders`: в ней есть `ClientId`, но нет названия клиента и суммы. А сайту нужно показать именно их. Для этого делают отдельный класс — **DTO** (Data Transfer Object, «объект для передачи данных»): в нём ровно те поля, которые API отдаёт наружу.
+
+Как создать новый файл с классом:
+
+1. В **Обозревателе решений** нажми правой кнопкой на папку **Models** → **Добавить** (Add) → **Класс** (Class).
+2. Впиши имя, например `OrderDto.cs`, и нажми **Добавить**.
+3. Visual Studio создаст файл с пустым классом. ⚠️ **Замени слово `internal` на `public`**, иначе контроллер не сможет вернуть этот класс.
 
 ```csharp
-class OrderShort
+namespace ShopApi.Models;
+
+public class OrderShort
 {
     public int Id { get; set; }
     public DateOnly OrderDate { get; set; }
     public string ClientName { get; set; } = "";
+    public int ItemCount { get; set; }
 }
 ```
 
 - `DateOnly` — дата без времени. В JSON она выглядит как `"2024-02-12"`.
 - У текстовых свойств пиши `= ""` в конце — так Visual Studio не будет ругаться, что текст может остаться пустым.
+- В одном файле можно описать несколько классов — один под другим.
 
-**Имена столбцов.** У товара и у клиента столбец называется одинаково — `name`. Чтобы библиотека поняла, в какое свойство что класть, дай столбцу имя через `AS` — как у свойства, но с подчёркиваниями:
-
-```csharp
-conn.Query<OrderShort>("""
-    SELECT o.id, o.order_date, c.name AS client_name
-    FROM orders o
-    JOIN clients c ON c.id = o.client_id
-    ORDER BY o.id
-    """);
-```
-
-`c.name AS client_name` попадёт в свойство `ClientName`. Если имя столбца не совпадёт ни с одним свойством, свойство останется пустым — без всякой ошибки. Поэтому, если в ответе вдруг `""`, `0` или `null`, первым делом сверь имена.
-
-**Список внутри объекта.** Свойство может хранить целый список других объектов:
+**`Select` — собрать DTO прямо в запросе:**
 
 ```csharp
-class Basket
-{
-    public int Id { get; set; }
-    public List<BasketLine>? Lines { get; set; }
-}
+db.Orders
+    .OrderBy(o => o.Id)
+    .Select(o => new OrderShort
+    {
+        Id = o.Id,
+        OrderDate = o.OrderDate,
+        ClientName = o.Client.Name,        // JOIN с clients
+        ItemCount = o.Items.Count(),       // сколько строк в заказе
+    })
+    .ToList();
 ```
 
-Заполняют его вторым запросом:
+- `new OrderShort { … }` — создать объект и сразу заполнить его свойства.
+- `o.Client.Name` и `o.Items` — навигационные свойства. EF Core сам превратит их в `JOIN` и подзапросы. Открой лог в чёрном окне и посмотри, какой SQL получился, — он будет похож на твои запросы из дня 2.
+- Внутри `Select` работают и `Count()`, и `Sum(…)`: `o.Items.Sum(i => i.Quantity * i.Price)`.
+
+**Список внутри объекта.** Свойство может хранить целый список других объектов: `public List<OrderLineDto> Items { get; set; } = new();`. Заполняют его вложенным `Select`:
 
 ```csharp
-var basket = conn.QuerySingleOrDefault<Basket>("SELECT … WHERE id = @id", new { id });
-if (basket == null)
-    return Results.NotFound();
-basket.Lines = conn.Query<BasketLine>("SELECT … WHERE basket_id = @id", new { id }).ToList();
-return Results.Ok(basket);
+Lines = o.Items.Select(i => new BasketLine { ProductName = i.Product.Name }).ToList(),
 ```
 
-- `.ToList()` превращает результат запроса в список `List<…>`.
-- `?` после типа — свойство может быть пустым (`null`). В JSON это будет `"lines": null`.
-
-> 💡 В заданиях 5–7 повторяется один и тот же SQL. Чтобы не копировать его три раза, сохрани общую часть в переменную перед эндпоинтами — `const string OrdersSql = """SELECT … FROM … JOIN …""";` — и приклеивай к ней конец запроса: `OrdersSql + " WHERE o.id = @id GROUP BY …"`.
+> 💡 В заданиях 5, 6 и 7 нужен один и тот же `Select`. Чтобы не копировать его трижды, вынеси его в метод прямо в классе `OrderDto`:
+>
+> ```csharp
+> public static IQueryable<OrderDto> From(IQueryable<Order> orders)
+> {
+>     return orders.OrderBy(o => o.Id).Select(o => new OrderDto { … });
+> }
+> ```
+>
+> и используй в контроллерах: `OrderDto.From(db.Orders).ToList()` или `OrderDto.From(db.Orders.Where(o => o.Id == id)).FirstOrDefault()`. Слово `static` значит, что метод вызывается у самого класса (`OrderDto.From`), а не у объекта.
 
 ### Задания
 
-Для заказов создай модели `Order` и `OrderLine` с такими свойствами:
+Создай в папке `Models` файл `OrderDto.cs` с двумя классами:
 
-| `Order` — заказ | Тип | Откуда |
+| `OrderDto` — заказ | Тип | Откуда |
 |---|---|---|
 | `Id` | `int` | номер заказа |
 | `OrderDate` | `DateOnly` | дата заказа |
 | `Status` | `string` | статус |
-| `ClientName` | `string` | название клиента из `clients` |
+| `ClientName` | `string` | название клиента |
 | `Total` | `int` | сумма заказа: количество × цена по всем строкам заказа |
-| `Items` | `List<OrderLine>?` | состав заказа (нужен только в задании 6) |
+| `Items` | `List<OrderLineDto>` | состав заказа |
 
-| `OrderLine` — строка заказа | Тип | Откуда |
+| `OrderLineDto` — строка заказа | Тип | Откуда |
 |---|---|---|
 | `ProductId` | `int` | номер товара |
-| `ProductName` | `string` | название товара из `products` |
+| `ProductName` | `string` | название товара |
 | `Quantity` | `int` | сколько штук |
 | `Price` | `int` | цена за штуку |
 
-**Задание 5.** `GET /orders` — все заказы: номер, дата, статус, название клиента и сумма.
-> 💡 Вспомни задания 15, 17 и 18 из дня 2: понадобятся три таблицы и `GROUP BY o.id, c.name`.
+Строки внутри заказа сортируй по `Id` строки заказа.
+
+**Задание 5.** `GET /orders` — все заказы в виде `OrderDto`. Пиши в `OrdersController`.
+> Проверь себя: 20 заказов, первый — `{"id":1,"orderDate":"2024-02-12","status":"Доставлен","clientName":"ООО «Ponchik Trade»","total":24000,"items":[…]}`, в `items` две строки: `{"productId":1,"productName":"Пончики с шоколадом","quantity":200,"price":90}` и чай Earl Grey. У заказа 2 сумма `16700`.
+
+**Задание 6.** `GET /orders/{id}` — один заказ в виде `OrderDto`. Если заказа нет — `404`.
+> 💡 `Find` здесь не подойдёт — он ищет только в таблице `orders` и вернёт `Order`, а не `OrderDto`. Используй `Where` + `Select` + `FirstOrDefault()`.
 >
-> Проверь себя: 20 заказов, первый — `{"id":1,"orderDate":"2024-02-12","status":"Доставлен","clientName":"ООО «Ponchik Trade»","total":24000,"items":null}`. У заказа 2 сумма `16700`.
+> Проверь себя: `/orders/1` — как первый заказ из задания 5. `/orders/100` — `404`.
 
-**Задание 6.** `GET /orders/{id}` — один заказ, и в `items` — его состав. Если заказа нет — `404`.
-> Проверь себя: `/orders/1` — как в задании 5, но `"items"` — список из двух строк: `{"productId":1,"productName":"Пончики с шоколадом","quantity":200,"price":90}` и чай Earl Grey. `/orders/100` — `404`.
-
-**Задание 7.** `GET /clients/{id}/orders` — все заказы одного клиента, в том же виде, что в задании 5. Если клиента нет — `404`.
+**Задание 7.** `GET /clients/{id}/orders` — все заказы одного клиента в виде `OrderDto`. Если клиента нет — `404`. Пиши в `ClientsController`.
 > Проверь себя: `/clients/1/orders` — 3 заказа: 1, 6 и 14. `/clients/11/orders` — `[]`: клиент есть, просто ещё ничего не заказывал. `/clients/100/orders` — `404`.
 
 Сохрани, закоммить, запушь.
@@ -419,60 +527,72 @@ return Results.Ok(basket);
 
 ### Шпаргалка
 
-**Данные в запросе.** `POST` и `PUT` присылают данные в **теле** запроса — в формате JSON. Если объявить в скобках параметр-модель, ASP.NET сам превратит JSON в объект:
+**Данные в запросе.** `POST` и `PUT` присылают данные в **теле** запроса — в формате JSON. Если объявить в скобках метода параметр-модель, ASP.NET сам превратит JSON в объект:
 
 ```csharp
 // POST /categories — добавить категорию. Тело: {"name": "Игрушки"}
-app.MapPost("/categories", (Category c) =>
+[HttpPost]
+public ActionResult<Category> Create(Category c)
 {
     if (string.IsNullOrWhiteSpace(c.Name))
-        return Results.BadRequest("Название не может быть пустым");
-    using var conn = db.OpenConnection();
-    var created = conn.QuerySingle<Category>("INSERT INTO categories (name) VALUES (@Name) RETURNING *", c);
-    return Results.Created($"/categories/{created.Id}", created);
-});
+        return BadRequest("Название не может быть пустым");
+    db.Categories.Add(c);
+    db.SaveChanges();
+    return Created($"/categories/{c.Id}", c);
+}
 ```
 
-- `app.MapPost` — эндпоинт для метода `POST`. Так же есть `app.MapPut` и `app.MapDelete`.
-- `(Category c)` — объект из тела запроса. `id` в теле можно не присылать — базе он не нужен.
-- `@Name` — параметр берётся прямо из свойства `c.Name`, поэтому вторым аргументом передаём сам объект `c`.
-- `RETURNING *` — `INSERT` (а также `UPDATE` и `DELETE`) возвращает изменённую строку, как будто это `SELECT`. Так мы узнаём `id`, который придумала база.
+- `[HttpPost]` — метод отвечает на `POST`. Так же есть `[HttpPut]` и `[HttpDelete]`.
+- `Category c` — объект из тела запроса. `id` в теле не присылай (или оставь `0`) — номер придумает база.
+- `db.Categories.Add(c)` — «добавь эту категорию». Пока это только в памяти программы.
+- `db.SaveChanges()` — **отправить все изменения в базу**. Только здесь EF Core выполнит `INSERT`. После него в `c.Id` окажется номер, который придумала база.
 - `string.IsNullOrWhiteSpace(текст)` — `true`, если текст пустой или из одних пробелов.
-- `$"/categories/{created.Id}"` — строка со вставкой значения: `{…}` внутри заменится на номер. Для **адреса** так можно, для SQL — никогда.
+- `$"/categories/{c.Id}"` — строка со вставкой значения: `{…}` внутри заменится на номер.
 
-**Параметр из адреса и тело вместе:**
-
-```csharp
-app.MapPut("/categories/{id}", (int id, Category c) => { … });
-```
-
-В SQL понадобится и `@id` из адреса, и `@Name` из тела. Собери их в один объект: `new { id, c.Name }`.
-
-**Сколько строк изменилось:**
+**Изменить строку** — найти, поменять свойства, сохранить:
 
 ```csharp
-int deleted = conn.Execute("DELETE FROM categories WHERE id = @id", new { id });
-if (deleted == 0)
-    return Results.NotFound();
+[HttpPut("{id}")]
+public ActionResult<Category> Update(int id, Category input)
+{
+    var category = db.Categories.Find(id);
+    if (category == null)
+        return NotFound();
+    category.Name = input.Name;
+    db.SaveChanges();          // EF Core сам заметит, что изменилось, и сделает UPDATE
+    return category;
+}
 ```
 
-`Execute` выполняет запрос и возвращает, сколько строк он изменил. `0` — значит, такой строки не было.
+Здесь `id` берётся из адреса, а `input` — из тела запроса.
+
+**Удалить строку:**
+
+```csharp
+db.Categories.Remove(category);
+db.SaveChanges();
+return NoContent();
+```
+
+Если метод ничего не возвращает, кроме кода ответа, пиши тип `IActionResult` вместо `ActionResult<…>`: `public IActionResult Delete(int id)`.
 
 **Коды ответа:**
 
 | Код | Как вернуть | Когда |
 |---|---|---|
-| `200 OK` | `Results.Ok(данные)` | всё хорошо, вот данные |
-| `201 Created` | `Results.Created(адрес, данные)` | создано новое, вот оно |
-| `204 No Content` | `Results.NoContent()` | всё хорошо, но отдавать нечего (например, после удаления) |
-| `400 Bad Request` | `Results.BadRequest("что не так")` | в запросе ошибка: пустое название, отрицательная цена… |
-| `404 Not Found` | `Results.NotFound()` | такого нет |
-| `409 Conflict` | `Results.Conflict("почему")` | запрос правильный, но выполнить его нельзя из-за других данных |
+| `200 OK` | `return данные;` | всё хорошо, вот данные |
+| `201 Created` | `return Created(адрес, данные);` | создано новое, вот оно |
+| `204 No Content` | `return NoContent();` | всё хорошо, но отдавать нечего (например, после удаления) |
+| `400 Bad Request` | `return BadRequest("что не так");` | в запросе ошибка: пустое название, отрицательная цена… |
+| `404 Not Found` | `return NotFound();` | такого нет |
+| `409 Conflict` | `return Conflict("почему");` | запрос правильный, но выполнить его нельзя из-за других данных |
 | `500 Internal Server Error` | сам не возвращай | API упал с ошибкой. Ищи её в чёрном окне сервера |
 
 **Как отправить `POST` в Swagger:** нажми на эндпоинт → **Try it out** → в поле **Request body** напиши JSON → **Execute**. Swagger подставит пример со всеми полями — просто поменяй значения.
 
 ### Задания
+
+Все три задания — в `ProductsController`.
 
 **Задание 8.** `POST /products` — добавить товар. В теле — `name`, `categoryId`, `price`, `stock`. Ответ — код `201` и созданный товар вместе с его `id`.
 
@@ -485,12 +605,14 @@ if (deleted == 0)
 > Проверь себя: отправь `{"name": "Ручка шариковая синяя", "categoryId": 3, "price": 50, "stock": 200}` — код `201`, в ответе `"id": 22`. Теперь `/products/22` отдаёт ручку. С `"price": 0` или `"categoryId": 99` — код `400`, а в `/products` по-прежнему ровно одна ручка.
 
 **Задание 9.** `PUT /products/{id}` — изменить товар целиком: в теле — те же 4 поля, что в задании 8, и те же проверки. Ответ — код `200` и изменённый товар. Если товара нет — `404`.
+> 💡 Проверки в заданиях 8 и 9 одинаковые. Их можно вынести в отдельный метод контроллера, например `string? Check(Product p)`, который возвращает текст ошибки или `null`, если всё хорошо.
+>
 > Проверь себя: `PUT /products/21` с телом `{"name": "Стеллаж металлический", "categoryId": 5, "price": 3900, "stock": 10}` — код `200`, `/products/21` теперь стоит 3900. С `"price": -1` — код `400`, а цена осталась 3900.
 
 **Задание 10.** `DELETE /products/{id}` — удалить товар. Ответ — код `204`. Если товара нет — `404`.
 
 Но товар, который уже есть в заказах, удалять нельзя: иначе в заказах останутся ссылки в никуда. Для такого товара — код `409` и ничего не удаляй.
-> 💡 Можно ли удалять, проверь заранее: сколько строк в `order_items` с этим `product_id`?
+> 💡 Можно ли удалять, проверь заранее: есть ли в `db.OrderItems` строки с этим `ProductId`?
 >
 > Проверь себя: `DELETE /products/1` (пончики, их заказывали) — `409`. `DELETE /products/12` (маркеры, их не заказывали) — `204`, и `/products/12` теперь `404`.
 
@@ -504,73 +626,66 @@ if (deleted == 0)
 
 ### Шпаргалка
 
-**Транзакция.** Оформить заказ — это несколько запросов: создать заказ, добавить строки, уменьшить остатки на складе. Если на третьем товаре выяснится, что его не хватает, первые два уже списаны со склада, а заказ — наполовину создан. Беспорядок.
+**`SaveChanges` — всё или ничего.** Оформить заказ — это много изменений: создать заказ, добавить строки, уменьшить остатки на складе. Если на третьем товаре выяснится, что его не хватает, а первые два уже списаны со склада, — получится беспорядок.
 
-**Транзакция** объединяет несколько запросов в одно целое: либо выполняются **все**, либо **ни один**.
+EF Core решает это за тебя. Все изменения копятся в памяти, а `SaveChanges()` отправляет их в базу **одной транзакцией**: либо сохраняется всё, либо ничего. Поэтому порядок такой:
+
+1. Проверь всё, что можно проверить.
+2. Внеси изменения в объекты (`Add`, поменять свойства).
+3. Если по дороге нашлась ошибка — просто `return BadRequest(…)`: `SaveChanges` не вызван, и в базу не попадёт ничего.
+4. В самом конце — **один** `SaveChanges()`.
+
+**Объект вместе со связанными строками:**
 
 ```csharp
-using var conn = db.OpenConnection();
-using var tx = conn.BeginTransaction();          // начать транзакцию
-
-conn.Execute("UPDATE … ", new { … }, tx);         // tx — третьим аргументом в КАЖДЫЙ запрос
-if (что-то не так)
-    return Results.BadRequest("…");               // выход до Commit — всё отменится само
-conn.Execute("INSERT … ", new { … }, tx);
-
-tx.Commit();                                      // сохранить всё разом
+var order = new Order { ClientId = 5, OrderDate = DateOnly.FromDateTime(DateTime.Today), Status = "Новый" };
+order.Items.Add(new OrderItem { ProductId = 7, Quantity = 2, Price = 400 });
+db.Orders.Add(order);
+db.SaveChanges();     // INSERT в orders и в order_items; OrderId у строк EF Core проставит сам
 ```
 
-- Пока не вызван `tx.Commit()`, изменения не видны никому, кроме этой транзакции.
-- Если выйти из эндпоинта раньше `Commit` (например, через `return Results.BadRequest(…)`), все изменения транзакции отменятся сами.
-- `tx` передавай в **каждый** запрос внутри транзакции. PostgreSQL простит, если забудешь, но другие базы — нет, так что привыкай сразу.
+- `DateOnly.FromDateTime(DateTime.Today)` — сегодняшняя дата.
+- `Find` возвращает объект, который можно сразу менять: `product.Stock -= 2;` уменьшит остаток на 2, а `SaveChanges` сохранит это в базу.
 
-**Полезный SQL:**
+**Модель для тела запроса.** Тело запроса тоже описывается классом. Вложенный список — это свойство-список:
 
-```sql
--- сегодняшняя дата
-INSERT INTO orders (client_id, order_date, status) VALUES (@ClientId, CURRENT_DATE, 'Новый') RETURNING id
+```csharp
+// {"basketId": 3, "lines": [{"productId": 1}, {"productId": 2}]}
+public class BasketInput
+{
+    public int BasketId { get; set; }
+    public List<BasketInputLine> Lines { get; set; } = new();
+}
 
--- уменьшить остаток, только если товара хватает. Execute вернёт 0, если товара нет или не хватает
-UPDATE products SET stock = stock - @Quantity WHERE id = @ProductId AND stock >= @Quantity
-
--- INSERT из SELECT: цену берём прямо из таблицы товаров
-INSERT INTO order_items (order_id, product_id, quantity, price)
-SELECT @orderId, id, @Quantity, price FROM products WHERE id = @ProductId
+public class BasketInputLine
+{
+    public int ProductId { get; set; }
+}
 ```
 
-`RETURNING id` возвращает одно число — его удобно получить через `ExecuteScalar<int>(…)`.
+**Перебрать список:**
+
+```csharp
+foreach (var line in input.Lines)
+{
+    // здесь line — очередная строка
+}
+```
 
 **Список значений и проверка «есть ли в нём»:**
 
 ```csharp
 string[] colors = ["красный", "зелёный", "синий"];
 if (!colors.Contains(color))
-    return Results.BadRequest("Нет такого цвета");
-```
-
-`!` значит «не»: `!colors.Contains(color)` — «в списке нет такого цвета».
-
-**Перебрать список:**
-
-```csharp
-foreach (var line in basket.Lines)
-{
-    // здесь line — очередная строка
-}
+    return BadRequest("Нет такого цвета");
 ```
 
 ### Задания
 
-**Задание 11.** `PUT /orders/{id}/status` — сменить статус заказа. В теле — `{"status": "Оплачен"}`. Допустимы только четыре статуса: `Новый`, `Оплачен`, `Доставлен`, `Отменён`. Ответ — код `200` и заказ в том же виде, что в задании 6. Другой статус — `400`, нет заказа — `404`.
-> 💡 Для тела понадобится модель с одним свойством `Status`. А чтобы не копировать код задания 6, вынеси загрузку заказа в функцию — её можно объявить прямо среди эндпоинтов:
->
-> ```csharp
-> Order? LoadOrder(NpgsqlConnection conn, int id)
-> {
->     // запросы из задания 6
->     return order;
-> }
-> ```
+Оба задания — в `OrdersController`.
+
+**Задание 11.** `PUT /orders/{id}/status` — сменить статус заказа. В теле — `{"status": "Оплачен"}`. Допустимы только четыре статуса: `Новый`, `Оплачен`, `Доставлен`, `Отменён`. Ответ — код `200` и заказ в виде `OrderDto`. Другой статус — `400`, нет заказа — `404`.
+> 💡 Для тела понадобится модель с одним свойством `Status` — добавь её в `OrderDto.cs`. Чтобы вернуть заказ, можно вызвать метод из задания 6: `return Get(id);` (если он у тебя называется `Get`).
 >
 > Проверь себя: `PUT /orders/16/status` с `{"status": "Оплачен"}` — код `200`, в ответе `"status": "Оплачен"`. С `{"status": "Потерян"}` — `400`.
 
@@ -588,9 +703,9 @@ foreach (var line in basket.Lines)
 
 Что должен сделать API:
 1. Создать заказ клиента `clientId` с сегодняшней датой и статусом `Новый`.
-2. Для каждой строки из `items` добавить строку в `order_items`. Цену за штуку взять из `products` — текущую цену товара.
+2. Для каждой строки из `items` добавить строку заказа. Цену за штуку взять из товара — его текущую цену.
 3. Уменьшить остаток каждого товара на складе на заказанное количество.
-4. Ответить кодом `201` и созданным заказом в том же виде, что в задании 6.
+4. Ответить кодом `201` и созданным заказом в виде `OrderDto`.
 
 Код `400`, и **база не должна измениться совсем**, если:
 - список `items` пустой;
@@ -598,11 +713,9 @@ foreach (var line in basket.Lines)
 - в какой-нибудь строке количество меньше или равно нулю;
 - какого-нибудь товара нет или его не хватает на складе.
 
-> 💡 Тебе понадобятся две модели: `NewOrder` (свойства `ClientId` и `Items`) и `NewOrderLine` (свойства `ProductId` и `Quantity`). Всё, что меняет базу, — в одной транзакции.
+> 💡 Тебе понадобятся две модели для тела: `NewOrder` (свойства `ClientId` и `Items`) и `NewOrderLine` (свойства `ProductId` и `Quantity`).
 >
-> Проверь себя: отправь пример выше — код `201`, `"clientName": "ООО «Ласточка»"`, `"total": 2040`, в `items` две строки. Конфет на складе теперь 115, калькуляторов — 24. Если заказать 500 конфет или 100 калькуляторов — `400`, и остатки не изменились.
->
-> Номер нового заказа может оказаться не 21, а больше — если перед этим были неудачные попытки. Это нормально: база не возвращает номера отменённых транзакций.
+> Проверь себя: отправь пример выше — код `201`, `"id": 21`, `"clientName": "ООО «Ласточка»"`, `"total": 2040`, в `items` две строки. Конфет на складе теперь 115, калькуляторов — 24. Если заказать 500 конфет или 100 калькуляторов — `400`, и остатки не изменились.
 
 Сохрани, закоммить, запушь. 🎉
 
@@ -611,14 +724,15 @@ foreach (var line in basket.Lines)
 ## Чек-лист
 
 - [ ] все 12 эндпоинтов работают, каждый сверен с подсказкой «Проверь себя»
-- [ ] настройка в начале `Program.cs` не изменена, строка подключения — не в коде, а в секретах пользователя
+- [ ] `Program.cs`, `Data/ShopContext.cs`, `ShopApi.csproj` и модели таблиц в `Models` не изменены
+- [ ] строка подключения — не в коде, а в секретах пользователя
 - [ ] адреса и имена полей в JSON — точно как в заданиях
-- [ ] все списки отсортированы по `id`
+- [ ] все списки отсортированы по `Id`
 - [ ] в истории есть коммиты по частям (`git log --oneline`)
 - [ ] `git status` показывает `up to date with 'origin/main'` и `working tree clean`
-- [ ] на GitHub в твоей копии `TASK_3` виден заполненный `Program.cs`
+- [ ] на GitHub в твоей копии `TASK_3` видны заполненные контроллеры и `Models/OrderDto.cs`
 
-> 💡 Проверяющие запускают твой API на свежей базе из `shop.sql` и отправляют ему запросы по порядку заданий — примерно те же, что в подсказках «Проверь себя». Свою строку подключения они подставят сами, поэтому строчку с `GetConnectionString("Shop")` не трогай.
+> 💡 Проверяющие запускают твой API на свежей базе из `shop.sql` и отправляют ему запросы по порядку заданий — примерно те же, что в подсказках «Проверь себя». Свою строку подключения они подставят сами, поэтому `Program.cs` не трогай.
 
 ---
 
@@ -633,7 +747,7 @@ Git Bash открыт ещё со времён до установки Visual St
 </details>
 
 <details>
-<summary>API падает сразу при запуске: <code>Value cannot be null. (Parameter 'Host')</code> / <code>Значение не может быть неопределённым</code></summary>
+<summary>Код <code>500</code> и в окне сервера <code>The ConnectionString property has not been initialized</code> / <code>Свойство ConnectionString не было инициализировано</code></summary>
 
 API не нашёл строку подключения. Выполни команду из шага 3 ещё раз — **в папке `TASK_3`** (проверь командой `pwd`). Имя секрета должно быть ровно `ConnectionStrings:Shop`.
 </details>
@@ -651,39 +765,75 @@ API не нашёл строку подключения. Выполни кома
 </details>
 
 <details>
-<summary><code>42P01: relation "…" does not exist</code>, <code>42703: column "…" does not exist</code>, <code>42601: syntax error at or near "…"</code></summary>
+<summary><code>42703: column … does not exist</code> / <code>столбец … не существует</code></summary>
 
-Ошибка в твоём SQL — те же, что вчера в pgAdmin (смотри раздел ошибок в README дня 2). Удобно отлаживать так: скопируй SQL из кода в pgAdmin, замени `@id` на число и запусти. Когда заработает — верни в код.
+Ты добавил в модель таблицы (`Product`, `Order`…) свойство, которого нет в базе, и EF Core ищет такой столбец. Убери это свойство из модели. Если нужны дополнительные поля в ответе — заведи для них свой класс-DTO (часть B).
 </details>
 
 <details>
 <summary>В Swagger код <code>500</code></summary>
 
-API упал при обработке запроса. Найди в чёрном окне сервера красное слово `fail` — под ним написано, что случилось. Чаще всего это ошибка в SQL (см. пункт выше).
+API упал при обработке запроса. Найди в чёрном окне сервера красное слово `fail` — под ним написано, что случилось. Самая полезная строчка обычно та, что начинается с названия ошибки: `System.InvalidOperationException: …`, `Npgsql.PostgresException: …`.
 </details>
 
 <details>
-<summary>В ответе пустые поля: <code>""</code>, <code>0</code> или <code>null</code></summary>
+<summary>Адрес отвечает <code>404</code>, хотя метод я написал</summary>
 
-Имя столбца в SQL не совпало с именем свойства в модели. Свойство `ClientName` ждёт столбец `client_name` (или `clientname`). Дай столбцу правильное имя через `AS`.
+- Над методом нет атрибута `[HttpGet]` (`[HttpPost]`…), или в нём опечатка в адресе.
+- Адрес в атрибуте пишется **без** имени контроллера: в `ProductsController` нужно `[HttpGet("{id}")]`, а не `[HttpGet("products/{id}")]`.
+- API не перезапущен после изменения кода.
+
+Посмотри в Swagger: там перечислены все адреса, которые API знает.
+</details>
+
+<details>
+<summary><code>AmbiguousMatchException: The request matched multiple endpoints</code></summary>
+
+Два метода отвечают на один и тот же метод и адрес — например, два `[HttpGet]` без адреса в одном контроллере. Удали лишний или поправь адрес.
+</details>
+
+<details>
+<summary><code>CS0050</code> / <code>CS0053: Inconsistent accessibility</code> / <code>Несогласованность по доступности</code></summary>
+
+Класс, который возвращает контроллер, объявлен как `internal class`. Замени `internal` на `public` — так Visual Studio создаёт новые классы по умолчанию.
+</details>
+
+<details>
+<summary><code>CS0266: Cannot implicitly convert type 'System.Linq.IQueryable&lt;…&gt;' to 'System.Collections.Generic.List&lt;…&gt;'</code></summary>
+
+В конце запроса забыт `.ToList()`. Без него запрос не выполняется — и это ещё не список.
+</details>
+
+<details>
+<summary><code>The LINQ expression … could not be translated</code> / <code>Не удалось преобразовать выражение LINQ</code></summary>
+
+EF Core не смог перевести твой код внутри `Where` или `Select` в SQL — например, там вызывается твой собственный метод. Внутри запроса пиши только простые вещи: сравнения, `&&`, `||`, свойства, навигационные свойства, `Count()`, `Sum(…)`.
+</details>
+
+<details>
+<summary><code>NullReferenceException: Object reference not set to an instance of an object</code> / <code>Ссылка на объект не указывает на экземпляр объекта</code></summary>
+
+Чаще всего — обращение к навигационному свойству вне запроса: `var o = db.Orders.Find(1); o.Client.Name` — `Find` не загружает связанные таблицы, и `o.Client` пустой. Обращайся к `o.Client.Name` и `o.Items` **внутри** `Select` — тогда EF Core сделает `JOIN`.
+
+Другая причина — объект не найден и равен `null`, а ты не проверил это через `if (… == null)`.
 </details>
 
 <details>
 <summary><code>CS1002: ; expected</code> / <code>Требуется ";"</code></summary>
 
-Пропущена точка с запятой. Visual Studio подчёркивает место ошибки — `;` нужна в конце предыдущей строки. Частая ловушка — `});` в конце эндпоинта.
+Пропущена точка с запятой. Visual Studio подчёркивает место ошибки — `;` нужна в конце предыдущей строки.
 </details>
 
 <details>
 <summary><code>CS0103: The name '…' does not exist in the current context</code> / <code>Имя "…" не существует в текущем контексте</code></summary>
 
-Опечатка в имени, или переменная объявлена в другом месте. Помни: большие и маленькие буквы различаются. Если не находится модель (например, `Order`) — ты ещё не написал её класс в конце файла.
+Опечатка в имени, или переменная объявлена в другом месте. Помни: большие и маленькие буквы различаются. Если не находится твой класс (например, `OrderDto`) — проверь, что файл лежит в папке `Models` и в его первой строке написано `namespace ShopApi.Models;`.
 </details>
 
 <details>
-<summary><code>CS1661: Cannot convert lambda expression to type 'RequestDelegate'</code> и <code>CS1678: Parameter 1 is declared as type 'int' but should be 'HttpContext'</code></summary>
+<summary><code>DbUpdateException</code> и <code>23503: … violates foreign key constraint</code> / <code>нарушает ограничение внешнего ключа</code></summary>
 
-Ошибка звучит странно, но почти всегда значит одно: в эндпоинте смешаны разные способы ответа — где-то `return Results.NotFound();`, а где-то просто `return product;`. Если есть хоть один `Results.…`, все ответы пиши через `Results.…`: `return Results.Ok(product);`.
+База не даёт удалить товар, на который ссылаются строки заказов, — или добавить строку с несуществующим товаром, клиентом или категорией. Это и есть то, что ты должен проверять сам перед `SaveChanges` (задания 8, 10, 12) и отвечать `400` или `409`.
 </details>
 
 <details>
@@ -699,13 +849,7 @@ API уже запущен — например, в другом окне Visual 
 </details>
 
 <details>
-<summary><code>23503: … violates foreign key constraint</code> / <code>нарушает ограничение внешнего ключа</code></summary>
-
-База не даёт удалить товар, на который ссылаются строки заказов, — или добавить строку с несуществующим товаром или клиентом. Это и есть то, что ты должен проверять сам перед запросом (задания 8, 10, 12) и отвечать `400` или `409`.
-</details>
-
-<details>
 <summary>В Swagger код <code>400</code>, хотя я ещё ничего не проверяю</summary>
 
-ASP.NET не смог прочитать JSON из тела. Проверь кавычки (в JSON — только двойные), запятые между полями и фигурные скобки по краям.
+ASP.NET не смог прочитать JSON из тела. Проверь кавычки (в JSON — только двойные), запятые между полями и фигурные скобки по краям. Ответ при этом содержит `"errors"` — там написано, какое поле не понравилось.
 </details>
