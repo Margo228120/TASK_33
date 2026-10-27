@@ -22,8 +22,8 @@ public class OrdersController(ShopContext db) : ControllerBase
             return NotFound();
 
         return db.OrderItems
-            .Where(i => i.ProductId == id) // Подсказка: Ищем по товару или все таки по заказу?
-            .OrderBy(i => i.ProductId) // Подсказка: По чему сортируем?
+            .Where(i => i.OrderId == id) // Подсказка: Ищем по товару или все таки по заказу?
+            .OrderBy(i => i.OrderId) // Подсказка: По чему сортируем?
             .ToList();
     }
 
@@ -37,14 +37,14 @@ public class OrdersController(ShopContext db) : ControllerBase
 
         return db.OrderItems
             .Where(i => i.OrderId == id)
-            .Sum(i => i.Quantity + i.Price); // Подсказка: сумма заказа - количество УМНОЖЕННОЕ на цену
+            .Sum(i => i.Quantity * i.Price); // Подсказка: сумма заказа - количество УМНОЖЕННОЕ на цену
     }
 
     // Задание 6. GET /orders/{id} — один заказ. Если заказа нет — 404
     [HttpGet("{id}")]
     public ActionResult<Order> Get(int id)
     {
-        var order = db.Orders.OrderBy(o => o.Id).FirstOrDefault(o => o.ClientId == id); // Подсказка: Получаем заказ по ЕГО Id, а не Id клиента
+        var order = db.Orders.OrderBy(o => o.Id).FirstOrDefault(o => o.Id == id); // Подсказка: Получаем заказ по ЕГО Id, а не Id клиента
         if (order == null)
             return NotFound();
         return order;

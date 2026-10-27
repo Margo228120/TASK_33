@@ -13,7 +13,7 @@ public class ClientsController(ShopContext db) : ControllerBase
         var clients = db.Clients.AsQueryable();
 
         // Подсказка: Если город УКАЗАН, то добавляем поиск по нему. А как мы проверяем сейчас?
-        if (city == null)
+        if (city != null)
             clients = clients.Where(c => c.City == city);
 
         return clients.OrderBy(c => c.Id).ToList();
@@ -30,8 +30,12 @@ public class ClientsController(ShopContext db) : ControllerBase
         // Сюда проверку на существование клиента:
         // if (...)
         //    return NotFound();
+        if (!db.Clients.Any(o => o.Id == id))
+            return NotFound();
 
-
-        return NotFound(); // замени эту строку своим кодом. Сделай поиск заказов (Orders) по ClientId с сортировкой по Id и верни список (List)
+        return db.Orders
+            .Where(o => o.ClientId == id)
+            .OrderBy(o => o.Id)
+            .ToList(); // замени эту строку своим кодом. Сделай поиск заказов (Orders) по ClientId с сортировкой по Id и верни список (List)
     }
 }
